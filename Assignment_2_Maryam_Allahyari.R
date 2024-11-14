@@ -1,6 +1,7 @@
 ## Assignment_2_Maryam_Allahyari_1350807_BINF*6210_October 24, 2024
 
 ## 1. Introduction ####
+
 ### The rise of antimicrobial resistance (AMR) in Klebsiella pneumoniae is considered a major 
 ### public health issue. The feature of multiple resistance genes enables K. pneumoniae to evade 
 ### treatments and lead to hospital-acquired infections in patients. Among the most significant 
@@ -18,6 +19,7 @@
 ### infections (3). My hypothesis is that clustering patterns of antimicrobial resistance genes in 
 ### Klebsiella pneumoniae genomes, specially including blaSHV and oqxA, will reveal specific ARG 
 ### combinations that may indicate horizontal gene transfer events or co-evolutionary pressures.
+
 
 
 ## 2. Code section 1 ####
@@ -38,6 +40,7 @@ if (!requireNamespace("BiocManager", quietly = TRUE)) {
 }
 BiocManager::install("msa") # For running multiple sequence alignment and identify conserved sequences or variable regions
 
+
 # We sould call the required libraries after package instalation so that we can use them.
 library(rentrez)
 library(DECIPHER)
@@ -47,6 +50,9 @@ library(Biostrings)
 library(cluster)
 library(clValid)
 library(msa)
+library(dbplyr) # loading two additional packages
+library(ggplot2)
+library(dplyr)
 
 
 # The codes bellow should be able to import the FASTA files into R without any directory problems but in case of any issue,
@@ -57,6 +63,9 @@ library(msa)
 ## First we should define the search term for oqxA gene in Klebsiella pneumoniae
 # search_term1 <- '"blaSHV"[gene] AND "Klebsiella pneumoniae"[organism] AND "genomic DNA"[filter] AND 850:1600[sequence length] AND "Homo sapiens"[host]'
 # search_term2 <- '"oqxA"[gene] AND "Klebsiella pneumoniae"[organism] AND "genomic DNA"[filter] AND 850:7000[sequence length]'
+
+
+### It would be good to understand the reason why these sequence lengths were chosen. The minimum sequence length is the same while the maximum is different for the two genes (1600 vs. 7000), what is the reason for this? Also, I am wondering why a host was not specified for the oqxA gene, similar to blasHV?   
 
 # To search for nucleotide sequences related to the oqxA gene in Klebsiella pneumoniae:
 # search_results1 <- entrez_search(
@@ -126,6 +135,38 @@ sequences2 <- readDNAStringSet(oqxA_fasta_file, format = "fasta")
 # For viewing the imported oqxA sequences:
 print(sequences2)
 
+####
+df1 <- data.frame(blaSHV_Title = names(sequences1), blasHV_Sequence = paste(sequences1))
+View(df1)
+summary(df2)
+seq_lengths <- nchar(df1$blasHV_Sequence)
+seq_lengths
+max(seq_lengths)
+min(seq_lengths)
+median(seq_lengths)
+
+# The max length is 1593, the minimum is 859 & the maximum is 891. 
+
+
+####
+df2 <- data.frame(oqxA_Title = names(sequences2), oqxA_Sequence = paste(sequences2))
+View(df1)
+summary(df2)
+seq_lengths2 <- nchar(df2$oqxA_Sequence)
+seq_lengths
+max(seq_lengths2)
+min(seq_lengths2)
+median(seq_lengths2)
+
+# The max length is 6973, the minimum length is 1176, and the median is 4998.
+
+
+#### When you are working with the sequence data, I think adding the sequences to a data frame is good practice as well. This makes it easier for you and for others who use your code to see the full data set and do an initial visual review of the data before proceeding to any quality, filtering or analysis steps. When you print(sequences1/2), I don't have a good understanding of the data, based on the output of the DNAStringSet object. 
+
+#### One additional thing that stands out to me for this first part of the data is the number of sequences for each gene. There are roughly 60 sequences for each gene, which to me seems to be on the lower side based on the suggested number of sequences (100-1000) for a clustering approach. I am also interested to know why there is so much variability in the sequence lengths for oqxA sequences, ranging from 1176-6973. Are these all actually the target gene sequences? How can this be validated?
+
+
+
 
 ### 2.2 Data quality control ####
 ### To check if there are any duplicates or ambiguous bases (N) we run the codes below:
@@ -148,7 +189,7 @@ ambiguous_proportion1 <- rowSums(alphabetFrequency(unique_sequences1)[, "N", dro
 ### For filtering sequences with too many ambiguous bases for blaSHV gene sequences:
 clean_unique_sequences1 <- length_filtered_sequences1[ambiguous_proportion1 <= max_ambiguous_threshold]
 cat("Number of sequences after removing ambiguous bases: ", length(clean_unique_sequences1), "\n")
-### output of the codes above demonstrate that number of blaSHV sequences after removing sequences with ambiguous bases above 5% stated the same as 47.
+### output of the codes above demonstrate that number of blaSHV sequences after removing sequences with ambiguous bases above 5% stated the same as 4.
 
 
 min_length_oqxA <- 850   
@@ -170,9 +211,51 @@ alignment_blaSHV <- AlignSeqs(clean_unique_sequences1)
 # For aligning the sequences for oqxA:
 alignment_oqxA <- AlignSeqs(clean_unique_sequences2)
 
+#### It would be helpful to visualize the sequence alignment for each alignment you created:
+BrowseSeqs(alignment_blaSHV)
+BrowseSeqs(alignment_oqxA)
+####
+
 # To calculate distance matrices for each gene:
 distance_matrix_blaSHV <- DistanceMatrix(alignment_blaSHV)
 distance_matrix_oqxA <- DistanceMatrix(alignment_oqxA)
+
+#### Your method to hierarchically cluster the sequences worked great and ran with no issues. Below I am just exploring another method that you could've used to calculate the distances between your sequences and to cluster them. This approach uses Treeline instead of hclust, which also uses hierarchical clustering but with single linkage. One of the benefits of Treeline is that you can set different cutoff thresholds for similarity between sequences and also work with different models. Both methods can be used, but it is valuable to understand and apply the different methods depending on the task at hand. 
+
+chosen.model <- "TN93"
+clustering.threshold <- 0.03
+clustering.method <- "single"
+
+# blaSHV gene:
+
+dnaBin <- as.DNAbin(alignment_blaSHV)
+distanceMatrix <- dist.dna(dnaBin, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
+distanceMatrix_scaled <- log(distanceMatrix + 1)
+rownames(distanceMatrix_scaled) <- substr(rownames(distanceMatrix_scaled), 1, 25)
+par(mar = c(10, 5, 1, 1)) 
+clusters.blaSHV.1 <- DECIPHER::TreeLine(myDistMatrix = distanceMatrix_scaled,
+                                   method = clustering.method,
+                                   cutoff = clustering.threshold,
+                                   showPlot = TRUE,
+                                   type = "both",
+                                   verbose = TRUE)
+
+
+# oqxA gene:
+
+dnaBin2 <- as.DNAbin(alignment_oqxA)
+distanceMatrix2 <- dist.dna(dnaBin2, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
+distanceMatrix_scaled2 <- log(distanceMatrix2 + 1)
+rownames(distanceMatrix_scaled2) <- substr(rownames(distanceMatrix_scaled2), 1, 25)
+par(mar = c(10, 5, 1, 1)) 
+clusters.oqxA.1 <- DECIPHER::TreeLine(myDistMatrix = distanceMatrix_scaled2,
+                                        method = clustering.method,
+                                        cutoff = clustering.threshold,
+                                        showPlot = TRUE,
+                                        type = "both",
+                                        verbose = TRUE)
+####
+
 
 # To truncate long labels:
 rownames(distance_matrix_blaSHV) <- substr(rownames(distance_matrix_blaSHV), 1, 25)  # Show only the first 25 characters
@@ -222,6 +305,7 @@ plot(
 par(mar = c(5, 4, 4, 2))
 
 
+
 ### 3.3 Cluster Strength Evaluation ####
 ### In order to identifying optimal Clusters and simplify interpretation,
 ### we should Cut the dendrogram to create clusters (you can adjust the number of clusters):
@@ -247,6 +331,9 @@ cat("Mean Silhouette Index for oqxA: ", mean_silhouette_oqxA, "\n")
 ### For blaSHV, a Silhouette index of 0.99, and for oqxA, it was 0.98 were obtained. Both scores are very high, indicating that 
 ### the clusters formed are well-separated and consistent, suggesting that these genes have distinct and meaningful clustering patterns.
 
+
+
+
 ### 3.4 Visualizing cluster quality using Silhouette Plot: ####
 
 ### For blaSHV gene:
@@ -256,9 +343,7 @@ plot(
   col = c("lightskyblue", "palevioletred"), 
   main = "Silhouette Plot for blaSHV Gene Clusters",
   cex.axis = 0.8,
-  cex.main = 1.2
-  
-)
+  cex.main = 1.2)
 
 # To add custom labels for cluster sizes (instead of "j: nj")
 text(
@@ -267,6 +352,9 @@ text(
 text(
   x = 0.05, y = 20, labels = "Cluster 2: 31 sequences", pos = 4, cex = 0.8
 )
+
+#### The output of this graph is a little bit hard to interpret, is silhouette width the same as silhouette index? The labels on the right side are a little bit cut-off and it is unclear what "j: nj | ave... etc" means. 
+####
 
 
 ### For oqxA gene:
@@ -300,6 +388,73 @@ cat("Dunn Index for oqxA: ", dunn_index_oqxA, "\n")
 ### sequences form tighter, more distinct clusters compared to oqxA sequences. This suggests that blaSHV may have stronger
 ### clustering patterns, possibly indicating a higher level of conservation or specific evolutionary pressures.
 
+
+#### I am curious to know how this would change if there are more than 2 clusters. I will explore this below to compare k=2 results to k=4. 
+
+#### After trying to use different k values, I was getting very strange silhouette width values, with some being negative, so I will use k = 2, but I will visualize the silhouette indices using ggplot to see if I can improve on the previous visualization. 
+
+# blaSHV Gene: 
+
+silhouette_df <- as.data.frame(silhouette_scores_blaSHV[, 1:3])
+colnames(silhouette_df) <- c("cluster", "neighbor", "sil_width")
+silhouette_df$id <- 1:nrow(silhouette_df)
+
+
+silhouette_df <- silhouette_df %>%
+  arrange(cluster) %>%
+  mutate(id = factor(id, levels = id))
+
+ggplot(silhouette_df, aes(x = id, y = sil_width, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity", width = 0.7, color = "black") +
+  scale_fill_manual(values = c("lightskyblue", "palevioletred")) +
+  labs(
+    title = "Silhouette Plot for blaSHV Gene Clusters",
+    x = "Sequences",
+    y = "Silhouette Width",
+    fill = "Cluster"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.y = element_blank()
+  ) +
+  coord_flip()
+
+
+# oqxA Gene:
+
+silhouette_df2 <- as.data.frame(silhouette_scores_oqxA[, 1:3])
+colnames(silhouette_df2) <- c("cluster", "neighbor", "sil_width")
+silhouette_df2$id <- 1:nrow(silhouette_df2)
+
+silhouette_df2 <- silhouette_df2 %>%
+  arrange(cluster) %>%
+  mutate(id = factor(id, levels = id))
+
+ggplot(silhouette_df2, aes(x = id, y = sil_width, fill = as.factor(cluster))) +
+  geom_bar(stat = "identity", width = 0.7, color = "black") +
+  scale_fill_manual(values = c("lightskyblue", "palevioletred")) +
+  labs(
+    title = "Silhouette Plot for oqxA Gene Clusters",
+    x = "Sequences",
+    y = "Silhouette Width",
+    fill = "Cluster"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.y = element_blank()
+  ) +
+  coord_flip()
+
+#### I think ggplot offers more flexibility in terms of being able to customize your figures and may provide improved readability for anyone looking at the figures.   
+####
+
+
 ### 3.6 For executing Multiple Sequence Alignment ####
 
 multiple_alignment1 <- msa(sequences1, method = "ClustalW")
@@ -321,14 +476,14 @@ conservation_scores1 <- apply(multiple_alignment_matrix1, 2, function(column) {
 })
 
 # Plot conservation scores across the alignment (due to limited number of figures these figure was commented out)
-#plot(conservation_scores1, type = "l", xlab = "Position", ylab = "Conservation Score", main = "Conservation across the blaSHV alignment")
+plot(conservation_scores1, type = "l", xlab = "Position", ylab = "Conservation Score", main = "Conservation across the blaSHV alignment")
 
 # Same process for the oqxA gene:
 conservation_scores2 <- apply(multiple_alignment_matrix2, 2, function(column) {
   max(table(column)) / length(column)
 })
 
-#plot(conservation_scores2, type = "l", xlab = "Position", ylab = "Conservation Score", main = "Conservation across the oqxA alignment")
+plot(conservation_scores2, type = "l", xlab = "Position", ylab = "Conservation Score", main = "Conservation across the oqxA alignment")
 
 
 ## 4. Discussion & Conclusion ####
