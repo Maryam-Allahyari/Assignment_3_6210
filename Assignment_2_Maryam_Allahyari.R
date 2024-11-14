@@ -147,7 +147,6 @@ median(seq_lengths)
 
 # The max length is 1593, the minimum is 859 & the maximum is 891. 
 
-
 ####
 df2 <- data.frame(oqxA_Title = names(sequences2), oqxA_Sequence = paste(sequences2))
 View(df1)
@@ -231,7 +230,7 @@ clustering.method <- "single"
 dnaBin <- as.DNAbin(alignment_blaSHV)
 distanceMatrix <- dist.dna(dnaBin, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
 distanceMatrix_scaled <- log(distanceMatrix + 1)
-rownames(distanceMatrix_scaled) <- substr(rownames(distanceMatrix_scaled), 1, 25)
+rownames(distanceMatrix_scaled) <- substr(rownames(distanceMatrix_scaled), 1, 15)
 par(mar = c(10, 5, 1, 1)) 
 clusters.blaSHV.1 <- DECIPHER::TreeLine(myDistMatrix = distanceMatrix_scaled,
                                    method = clustering.method,
@@ -246,7 +245,7 @@ clusters.blaSHV.1 <- DECIPHER::TreeLine(myDistMatrix = distanceMatrix_scaled,
 dnaBin2 <- as.DNAbin(alignment_oqxA)
 distanceMatrix2 <- dist.dna(dnaBin2, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
 distanceMatrix_scaled2 <- log(distanceMatrix2 + 1)
-rownames(distanceMatrix_scaled2) <- substr(rownames(distanceMatrix_scaled2), 1, 25)
+rownames(distanceMatrix_scaled2) <- substr(rownames(distanceMatrix_scaled2), 1, 15)
 par(mar = c(10, 5, 1, 1)) 
 clusters.oqxA.1 <- DECIPHER::TreeLine(myDistMatrix = distanceMatrix_scaled2,
                                         method = clustering.method,
@@ -435,7 +434,7 @@ silhouette_df2 <- silhouette_df2 %>%
 
 ggplot(silhouette_df2, aes(x = id, y = sil_width, fill = as.factor(cluster))) +
   geom_bar(stat = "identity", width = 0.7, color = "black") +
-  scale_fill_manual(values = c("lightskyblue", "palevioletred")) +
+  scale_fill_manual(values = c("lightcoral", "lightgreen")) +
   labs(
     title = "Silhouette Plot for oqxA Gene Clusters",
     x = "Sequences",
