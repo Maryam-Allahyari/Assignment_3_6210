@@ -1,5 +1,7 @@
 # Assignment_3_6210
+
 Main Script by: Maryam_Allhyari
+
 Main Edits by: Vlad Bularca
 
 Code Edits:
